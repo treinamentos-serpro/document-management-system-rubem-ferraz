@@ -52,6 +52,33 @@ function listDocuments(owner) {
     .map((document) => sanitizeDocument(document));
 }
 
+/**
+ * Recupera o caminho absoluto do arquivo de um documento, validando que ele
+ * está dentro do diretório de armazenamento para evitar path traversal.
+ *
+ * @returns {string} caminho absoluto seguro
+ * @throws {Error} se o documento não existir, o arquivo não existir no disco
+ *   ou o caminho estiver fora do diretório de armazenamento
+ */
+function getDocumentFilePath(id) {
+  const document = documentsRepository.findById(id);
+
+  if (!document) {
+    throw new Error('Documento não encontrado.');
+  }
+
+  const resolvedPath = path.resolve(document.path);
+  if (!resolvedPath.startsWith(storageDirectory + path.sep) && resolvedPath !== storageDirectory) {
+    throw new Error('Acesso negado: caminho fora do diretório de armazenamento.');
+  }
+
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error('Arquivo não encontrado no armazenamento local.');
+  }
+
+  return { resolvedPath, originalName: document.originalName };
+}
+
 function getDocumentById(id) {
   return documentsRepository.findById(id);
 }
@@ -60,5 +87,6 @@ module.exports = {
   createDocument,
   listDocuments,
   getDocumentById,
+  getDocumentFilePath,
   ensureStorageDirectory,
 };

@@ -1,4 +1,3 @@
-const fs = require('node:fs');
 const documentsService = require('../services/documents.service');
 
 function uploadDocument(req, res) {
@@ -35,17 +34,9 @@ function listDocuments(req, res) {
 
 function downloadDocument(req, res) {
   try {
-    const document = documentsService.getDocumentById(req.params.id);
+    const { resolvedPath, originalName } = documentsService.getDocumentFilePath(req.params.id);
 
-    if (!document) {
-      return res.status(404).json({ error: 'Documento não encontrado.' });
-    }
-
-    if (!fs.existsSync(document.path)) {
-      return res.status(404).json({ error: 'Arquivo não encontrado no armazenamento local.' });
-    }
-
-    return res.download(document.path, document.originalName, (error) => {
+    return res.download(resolvedPath, originalName, (error) => {
       if (error) {
         return res.status(500).json({ error: 'Falha ao preparar o download.' });
       }
@@ -53,6 +44,17 @@ function downloadDocument(req, res) {
       return undefined;
     });
   } catch (error) {
+    if (
+      error.message === 'Documento não encontrado.' ||
+      error.message === 'Arquivo não encontrado no armazenamento local.'
+    ) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (error.message.startsWith('Acesso negado')) {
+      return res.status(403).json({ error: error.message });
+    }
+
     return res.status(500).json({ error: 'Falha ao preparar o download.' });
   }
 }
