@@ -37,11 +37,9 @@ function downloadDocument(req, res) {
     const { resolvedPath, originalName } = documentsService.getDocumentFilePath(req.params.id);
 
     return res.download(resolvedPath, originalName, (error) => {
-      if (error) {
-        return res.status(500).json({ error: 'Falha ao preparar o download.' });
+      if (error && !res.headersSent) {
+        res.status(500).json({ error: 'Falha ao preparar o download.' });
       }
-
-      return undefined;
     });
   } catch (error) {
     if (

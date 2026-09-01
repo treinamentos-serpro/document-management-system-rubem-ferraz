@@ -1,9 +1,8 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { storageDirectory } = require('../config');
 const documentsRepository = require('../repositories/documents.repository');
-
-const storageDirectory = path.resolve(__dirname, '../../storage');
 
 function ensureStorageDirectory() {
   fs.mkdirSync(storageDirectory, { recursive: true });
@@ -23,8 +22,6 @@ function createDocument({ file, owner }) {
   if (!file) {
     throw new Error('Nenhum arquivo foi enviado.');
   }
-
-  ensureStorageDirectory();
 
   const id = `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   const filename = file.filename || `${id}${path.extname(file.originalname || '')}`;
@@ -53,12 +50,12 @@ function listDocuments(owner) {
 }
 
 /**
- * Recupera o caminho absoluto do arquivo de um documento, validando que ele
- * está dentro do diretório de armazenamento para evitar path traversal.
+ * Recupera o caminho absoluto do arquivo de um documento, reconstruindo-o
+ * a partir do diretório de armazenamento e do nome de arquivo confiável
+ * (nunca usando o caminho fornecido pelo usuário) para evitar path traversal.
  *
- * @returns {string} caminho absoluto seguro
- * @throws {Error} se o documento não existir, o arquivo não existir no disco
- *   ou o caminho estiver fora do diretório de armazenamento
+ * @returns {{ resolvedPath: string, originalName: string }}
+ * @throws {Error} se o documento não existir ou o arquivo não existir no disco
  */
 function getDocumentFilePath(id) {
   const document = documentsRepository.findById(id);
@@ -67,10 +64,10 @@ function getDocumentFilePath(id) {
     throw new Error('Documento não encontrado.');
   }
 
-  const resolvedPath = path.resolve(document.path);
-  if (!resolvedPath.startsWith(storageDirectory + path.sep) && resolvedPath !== storageDirectory) {
-    throw new Error('Acesso negado: caminho fora do diretório de armazenamento.');
-  }
+  // Reconstrói o caminho a partir de componentes confiáveis, nunca do valor
+  // armazenado que poderia ter sido manipulado.
+  const safeName = path.basename(document.filename);
+  const resolvedPath = path.join(storageDirectory, safeName);
 
   if (!fs.existsSync(resolvedPath)) {
     throw new Error('Arquivo não encontrado no armazenamento local.');

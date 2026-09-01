@@ -11,24 +11,27 @@ test('getDocumentFilePath lança erro para documento inexistente', () => {
   );
 });
 
-test('getDocumentFilePath lança erro de acesso negado para path fora do storage', () => {
-  // Injeta diretamente no repositório um documento com path malicioso
+test('getDocumentFilePath lança erro para arquivo fora do storage (path traversal)', () => {
+  // Injeta diretamente no repositório um documento com filename malicioso
   const repository = require('../src/repositories/documents.repository');
   const maliciousDoc = {
     id: 'doc-malicioso',
     originalName: 'evil.txt',
-    filename: 'evil.txt',
+    // path.basename extrai apenas o nome do arquivo, o que impede path traversal
+    filename: '../../../etc/passwd',
     mimeType: 'text/plain',
     size: 10,
     uploadedAt: new Date().toISOString(),
     owner: 'attacker',
-    path: path.resolve('/etc/passwd'),
+    path: '/etc/passwd',
   };
   repository.createDocument(maliciousDoc);
 
+  // Com filename malicioso, path.basename isola apenas "passwd".
+  // O arquivo não existe em storageDirectory, então lança erro de não encontrado.
   assert.throws(
     () => documentsService.getDocumentFilePath('doc-malicioso'),
-    { message: /Acesso negado/ },
+    { message: 'Arquivo não encontrado no armazenamento local.' },
   );
 });
 
@@ -50,7 +53,7 @@ test('sanitizeDocument não expõe path no retorno de createDocument', () => {
     originalname: 'test.txt',
     mimetype: 'text/plain',
     size: 4,
-    path: path.join(path.resolve(__dirname, '../storage'), 'test.txt'),
+    path: path.join(require('../src/config').storageDirectory, 'test.txt'),
   };
 
   const doc = documentsService.createDocument({ file: fakeFile, owner: 'user' });
